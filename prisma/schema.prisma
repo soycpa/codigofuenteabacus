@@ -1,0 +1,165 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/embudo_onofre_lopez/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  username               String?   // URL-safe username para /embudo/[username], manejamos unicidad en app
+  name                   String?
+  password               String
+  role                   String    @default("user") // "user" | "admin"
+  subscriptionActive     Boolean   @default(false)
+  subscriptionExpiresAt  DateTime?
+  googleAnalyticsId      String?   // Measurement ID de Google Analytics
+  notificationEmail      String?   // Email donde recibir notificaciones de prospectos (default: email del usuario)
+  waPhoneNumberId        String?   // WhatsApp Business API: Phone Number ID
+  waAccessToken          String?   // WhatsApp Business API: Permanent Access Token
+  waBusinessId           String?   // WhatsApp Business API: Business Account ID
+  waVerifyToken          String?   // WhatsApp Business API: Webhook Verify Token
+  googleClientId         String?   // Google SSO: OAuth Client ID
+  googleClientSecret     String?   // Google SSO: OAuth Client Secret
+  whatsappNumber         String?   @default("+524451057305") // WhatsApp para redirección final (Paso 19)
+  createdAt              DateTime  @default(now())
+  deletedAt              DateTime?  // Soft delete: NULL si está activo, fecha si fue eliminado
+  funnels                Funnel[]
+
+  @@index([username])
+}
+
+model Funnel {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug        String     @unique
+  name        String
+  niche       String?    // ej: seguros, productos, servicios
+  config      Json       // todos los textos/URLs personalizables
+  modules     Json       // array de números de pasos activos [1,2,3,...,19]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  prospects   Prospect[]
+  visits      FunnelVisit[]
+
+  @@index([userId])
+}
+
+model Prospect {
+  id              String   @id @default(cuid())
+  funnelId        String?
+  funnel          Funnel?  @relation(fields: [funnelId], references: [id], onDelete: SetNull)
+  nombre          String
+  email           String
+  whatsapp        String
+  pasoActual      Int      @default(6)
+  timestampInicio DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([email])
+  @@index([funnelId])
+}
+
+model FunnelVisit {
+  id              String   @id @default(cuid())
+  funnelId        String
+  funnel          Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  step            Int      // El paso que visitó (1-19)
+  visitorId       String?  // ID anónimo del visitante (localStorage)
+  email           String?  // Email si fue capturado en formulario
+  timestamp       DateTime @default(now())
+
+  @@index([funnelId])
+  @@index([funnelId, step])
+  @@index([timestamp])
+}
+
+model LandingTemplate {
+  id          String   @id @default(cuid())
+  themeKey    String   @unique // "azul" | "verde" | "rojo"
+  name        String   // nombre legible
+  version     Int      @default(1)
+  content     Json     // todos los textos editables por Onofre
+  colors      Json     // paleta de colores del tema
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+model UserLanding {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  // Personal (NUNCA se sobreescribe al actualizar plantilla)
+  fullName            String?
+  profession          String?
+  aboutMe             String?  @db.Text
+  profilePhotoUrl     String?
+  logoUrl             String?
+  callPhone           String?
+  whatsappPhone       String?
+  contactEmail        String?
+  city                String?
+  address             String?
+  facebookUrl         String?
+  instagramUrl        String?
+  tiktokUrl           String?
+  linkedinUrl         String?
+  youtubeUrl          String?
+  websiteUrl          String?
+  calendlyUrl         String?  // URL de Calendly para agendar citas
+  customDomain        String?  @unique
+  // Imágenes de las secciones (subidas por el usuario)
+  heroImage           String?  // Foto principal del agente (vertical, recomendado 800x1000)
+  familyImage         String?  // Familia con poliza (banner, recomendado 1600x600)
+  inspirationImage    String?  // "Historias que nos inspiran" (banner, 1600x500)
+  scenarioImage       String?  // Escenario lateral (vertical, 800x1000)
+  processImage        String?  // Beneficios acelerados (vertical, 800x1000)
+  // Plantilla
+  themeKey            String   @default("azul") // azul | verde | rojo
+  templateContent     Json     // copia de los textos de plantilla (clonado)
+  templateVersion     Int      @default(1)
+  sourceTemplateKey   String   @default("azul")
+  designVariant       String   @default("clasico") // clasico | moderno | minimal | elegante
+  enabled             Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  leads               LandingLead[]
+
+  @@index([customDomain])
+}
+
+model LandingLead {
+  id            String   @id @default(cuid())
+  userLandingId String
+  userLanding   UserLanding @relation(fields: [userLandingId], references: [id], onDelete: Cascade)
+  nombre        String
+  apellido      String?
+  genero        String?
+  fechaNacimiento String?
+  fuma          String?
+  estado        String?
+  pagoDeseado   String?
+  email         String?
+  whatsapp      String?
+  telefono      String?
+  mensaje       String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([userLandingId])
+}
+
+model AppSettings {
+  id           Int      @id @default(1)
+  price        Float    @default(15)
+  currency     String   @default("USD")
+  paypalUrl    String   @default("")
+  stripeUrl    String   @default("")
+  oxxoInfo     String   @default("")
+  transferInfo String   @default("")
+  updatedAt    DateTime @updatedAt
+}
